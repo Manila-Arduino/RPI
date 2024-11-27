@@ -73,29 +73,26 @@ class MLX90640:
         self.fig.canvas.update()
         self.fig.canvas.flush_events()
 
-    def start(self):
-        while True:
-            t1 = time.monotonic()
-            retry_count = 0
-            while retry_count < self.max_retries:
-                try:
-                    self.mlx.getFrame(self.frame)
-                    self.data_array = np.reshape(self.frame, (24, 32))
-                    self._update_display()
-                    plt.pause(0.001)
-                    self.t_array.append(time.monotonic() - t1)
-                    print(
-                        "Sample Rate: {0:2.1f}fps".format(
-                            len(self.t_array) / np.sum(self.t_array)
-                        )
+    def update(self):
+        t1 = time.monotonic()
+        retry_count = 0
+        while retry_count < self.max_retries:
+            try:
+                self.mlx.getFrame(self.frame)
+                self.data_array = np.reshape(self.frame, (24, 32))
+                self._update_display()
+                plt.pause(0.001)
+                self.t_array.append(time.monotonic() - t1)
+                print(
+                    "Sample Rate: {0:2.1f}fps".format(
+                        len(self.t_array) / np.sum(self.t_array)
                     )
-                    break
-                except ValueError:
-                    retry_count += 1
-                except RuntimeError as e:
-                    retry_count += 1
-                    if retry_count >= self.max_retries:
-                        print(
-                            f"Failed after {self.max_retries} retries with error: {e}"
-                        )
-                        return
+                )
+                break
+            except ValueError:
+                retry_count += 1
+            except RuntimeError as e:
+                retry_count += 1
+                if retry_count >= self.max_retries:
+                    print(f"Failed after {self.max_retries} retries with error: {e}")
+                    return

@@ -12,26 +12,28 @@ NOTES:
 
 4. git clone
 
-5) chmod -R +x . Note: might delete
+5. chmod -R +x . Note: might delete
 
-6) DISABLE SCREEN SLEEP
+6. DISABLE SCREEN SLEEP
    sudo nano /etc/lightdm/lightdm.conf
 
    [Seat:*]
    xserver-command=X -s 0 dpms
 
-7) Initialize
+7. Initialize
    sudo apt update
    sudo apt upgrade -y
+   pip install pynput
+   pip install rich
 
-8) Install python libraries
+8. Install python libraries
 
-9) If use GPIO - see --- GPIO ---
-10) If use tensorflow - see --- TENSORFLOW ---
+9. If use GPIO - see --- GPIO ---
+10. If use tensorflow - see --- TENSORFLOW ---
 
-11) try running app.py
+11. try running app.py
 
-12) utils/autostart
+12. utils/autostart
 
 ----- GPIO -----
 
