@@ -1,0 +1,26 @@
+- DISABLE TRACK IN WINDOWS OF FILE PERMISSIONS:
+	git config core.fileMode false
+
+- CHECK PERMISSION OF A FILE
+	git ls-tree HEAD q
+
+
+- UPDATE ALL PERMISSIONS:
+	git ls-files | xargs git update-index --chmod=+x
+
+
+- WHAT I DID FOR AUTOMATIC EXECUTABLE
+
+git config --global core.hooksPath ~/.githooks
+mkdir -p ~/.githooks
+nano ~/.githooks/pre-commit
+
+#!/bin/bash
+# Automatically add +x to all tracked files
+git diff --cached --name-only | while read -r file; do
+    if [ -f "$file" ]; then
+        git update-index --chmod=+x "$file"
+    fi
+done
+
+chmod +x ~/.githooks/pre-commit

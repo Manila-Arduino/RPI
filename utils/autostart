@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# ! For debugging: sudo journalctl -u autostart.service -b
+
+# Create the autostart.service file
+echo "[Unit]
+Description=Autostart app
+After=multi-user.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/admin/rpi
+ExecStart=lxterminal --command=\"python /home/admin/rpi/app.py\"
+Environment=\"DISPLAY=:0\"
+User=admin
+
+[Install]
+WantedBy=multi-user.target" | sudo tee /etc/systemd/system/autostart.service > /dev/null
+
+# Reload systemd manager configuration
+sudo systemctl daemon-reload
+
+# Enable the autostart service
+sudo systemctl enable autostart.service
+
+# Start the autostart service
+sudo systemctl start autostart.service
+
+echo "Autostart service created and started successfully."
