@@ -4,69 +4,89 @@ import busio
 import numpy as np
 import adafruit_mlx90640
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+from PyQt5 import QtCore
+from typing import Callable, Optional
 
 
 def _usage():
-    """
-    pip install matplotlib
-    pip install scipy
-    pip install numpy
-    sudo apt install -y python-smbus
-    sudo apt install -y i2c-tools
-    sudo nano /boot/config.txt
-
-        Note: under #Uncomment some or all of these to enable the ...
-            dtparam=i2c_arm=on, i2c_arm_baudrate=400000
-
-    sudo reboot
-    sudo i2cdetect -y 1
-
-    sudo pip install RPI.GPIO adafruit-blinka
-    sudo pip install adafruit-circuitpython-mlx90640
-    """
     #! MLX90640
     mlx90640 = MLX90640()
-    mlx90640.capture()
+    mlx90640.start()
 
 
 class MLX90640:
-    def __init__(self, address=0x33):
-        i2c = busio.I2C(board.SCL, board.SDA)
-        mlx = adafruit_mlx90640.MLX90640(i2c)
-        mlx.refresh_rate = adafruit_mlx90640.RefreshRate.REFRESH_4_HZ
+    def __init__(
+        self,
+        refresh_rate: adafruit_mlx90640.RefreshRate = adafruit_mlx90640.RefreshRate.REFRESH_4_HZ,
+        max_retries: int = 5,
+        vmin: float = 0.0,
+        vmax: float = 60.0,
+        cmap: str = "inferno",
+        plot_size: tuple = (4, 2),
+    ):
+        self.refresh_rate = refresh_rate
+        self.max_retries = max_retries
+        self.vmin = vmin
+        self.vmax = vmax
+        self.cmap = cmap
+        self.plot_size = plot_size
+        self.frame = np.zeros((24 * 32,))
+        self.data_array = np.zeros((24, 32))
+        self.t_array = []
+
+        # Initialize sensor
+        self.i2c = busio.I2C(board.SCL, board.SDA)
+        self.mlx = adafruit_mlx90640.MLX90640(self.i2c)
+        self.mlx.refresh_rate = self.refresh_rate
+
+        # Initialize plot
+        self.fig, self.ax, self.therm1 = self._setup_plot()
+
+    def _setup_plot(self):
         plt.ion()
-        fig, ax = plt.subplots(figsize=(12, 7))
+        fig, ax = plt.subplots(figsize=self.plot_size)
         therm1 = ax.imshow(
             np.zeros((24, 32)),
-            vmin=0,
-            vmax=60,
-            cmap="inferno",
+            vmin=self.vmin,
+            vmax=self.vmax,
+            cmap=self.cmap,
             interpolation="bilinear",
         )
         cbar = fig.colorbar(therm1)
         cbar.set_label("Temperature [°C]", fontsize=14)
         plt.title("Thermal Image")
 
-        frame = np.zeros((24 * 32,))
-        t_array = []
-        max_retries = 5
+        # Set fullscreen mode
+        manager = plt.get_current_fig_manager()
+        window = manager.window
+        window.setWindowFlags(window.windowFlags() | QtCore.Qt.FramelessWindowHint)
+        window.showFullScreen()
 
+        return fig, ax, therm1
+
+    def _update_display(self):
+        self.therm1.set_data(np.fliplr(self.data_array))
+        self.therm1.set_clim(vmin=np.min(self.data_array), vmax=np.max(self.data_array))
+        self.ax.draw_artist(self.ax.patch)
+        self.ax.draw_artist(self.therm1)
+        self.fig.canvas.update()
+        self.fig.canvas.flush_events()
+
+    def start(self):
         while True:
             t1 = time.monotonic()
             retry_count = 0
-            while retry_count < max_retries:
+            while retry_count < self.max_retries:
                 try:
-                    mlx.getFrame(frame)
-                    data_array = np.reshape(frame, (24, 32))
-
-                    #! Update
-                    self.update_display(fig, ax, therm1, data_array)
-
+                    self.mlx.getFrame(self.frame)
+                    self.data_array = np.reshape(self.frame, (24, 32))
+                    self._update_display()
                     plt.pause(0.001)
-                    t_array.append(time.monotonic() - t1)
+                    self.t_array.append(time.monotonic() - t1)
                     print(
                         "Sample Rate: {0:2.1f}fps".format(
-                            len(t_array) / np.sum(t_array)
+                            len(self.t_array) / np.sum(self.t_array)
                         )
                     )
                     break
@@ -74,17 +94,8 @@ class MLX90640:
                     retry_count += 1
                 except RuntimeError as e:
                     retry_count += 1
-                    if retry_count >= max_retries:
-                        print(f"Failed after {max_retries} retries with error: {e}")
-                        break
-
-    def capture(self):
-        return self.read()
-
-    def update_display(self, fig, ax, therm1, data_array):
-        therm1.set_data(np.fliplr(data_array))
-        therm1.set_clim(vmin=np.min(data_array), vmax=np.max(data_array))
-        ax.draw_artist(ax.patch)
-        ax.draw_artist(therm1)
-        fig.canvas.update()
-        fig.canvas.flush_events()
+                    if retry_count >= self.max_retries:
+                        print(
+                            f"Failed after {self.max_retries} retries with error: {e}"
+                        )
+                        return
