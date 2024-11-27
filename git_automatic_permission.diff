@@ -5,10 +5,6 @@
 	git ls-tree HEAD q
 
 
-- UPDATE ALL PERMISSIONS:
-	git ls-files | xargs git update-index --chmod=+x
-
-
 - WHAT I DID FOR AUTOMATIC EXECUTABLE
 
 git config --global core.hooksPath ~/.githooks
