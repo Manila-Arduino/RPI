@@ -7,6 +7,12 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from PyQt5 import QtCore
 from typing import Callable, Optional
+import matplotlib.backend_bases as mpl_cursor
+from PyQt5.QtGui import QPixmap, QCursor, QPainter, QColor, QPen
+from PyQt5.QtCore import Qt
+
+n_detects = 30
+temp_diff_min = 5
 
 
 def _usage():
@@ -25,6 +31,7 @@ class MLX90640:
         cmap: str = "inferno",
         plot_size: tuple = (4, 2),
     ):
+        plt.rcParams["toolbar"] = "none"
         self.refresh_rate = refresh_rate
         self.max_retries = max_retries
         self.vmin = vmin
@@ -34,6 +41,8 @@ class MLX90640:
         self.frame = np.zeros((24 * 32,))
         self.data_array = np.zeros((24, 32))
         self.t_array = []
+
+        self.last_n_temps = []
 
         # Initialize sensor
         self.i2c = busio.I2C(board.SCL, board.SDA)
@@ -55,7 +64,35 @@ class MLX90640:
         )
         cbar = fig.colorbar(therm1)
         cbar.set_label("Temperature [°C]", fontsize=14)
-        plt.title("Thermal Image")
+        # plt.title("Thermal Image")
+
+        # Add a warning or label at the bottom of the figure
+        self.description_text = plt.figtext(
+            0.5,
+            0.05,  # Position (x, y) in figure coordinates (0.5 is centered, 0.01 is near bottom)
+            "Normal",
+            ha="center",  # Horizontal alignment
+            fontsize=10,  # Font size
+            color="red",  # Text color
+            weight="bold",  # Make it bold
+        )
+
+        # Add dynamic temperature display
+        self.selected_y = 12
+        self.selected_x = 16
+        selected_temp = np.fliplr(self.data_array)[self.selected_y, self.selected_x]
+        self.temperature_text = plt.figtext(
+            0.5,
+            0.92,  # Position (x, y) near the top
+            f"Selected Temp: {selected_temp:.2f} °C",
+            ha="center",
+            fontsize=15,
+            color="blue",
+            weight="bold",
+        )
+
+        # Remove x and y labels
+        ax.axis("off")
 
         # Set fullscreen mode
         manager = plt.get_current_fig_manager()
@@ -63,9 +100,113 @@ class MLX90640:
         window.setWindowFlags(window.windowFlags() | QtCore.Qt.FramelessWindowHint)
         window.showFullScreen()
 
+        # Center the cursor on the image
+        def center_cursor():
+            QCursor.setPos(210, 160)
+
+        # Call this function after the window is displayed
+        fig.canvas.draw_idle()
+        center_cursor()
+
+        # Customize the coordinate display to show temperature
+        def custom_coord(x, y):
+            row = int(y)
+            col = int(x)
+            if 0 <= row < 24 and 0 <= col < 32:
+                temp = self.data_array[row, col]
+                return f"Temp: {temp:.2f} °C"
+            return "Temp: -- °C"
+
+        ax.format_coord = custom_coord
+
+        # Define the click event
+        def on_click(event):
+            if event.inaxes == ax:
+                self.selected_x, self.selected_y = int(event.xdata), int(event.ydata)
+
+        # Connect the click event to the figure
+        fig.canvas.mpl_connect("button_press_event", on_click)
+
+        # Create and set a custom crosshair cursor
+        crosshair_size = 50  # Increase this value to make the crosshair larger
+        pixmap = QPixmap(crosshair_size, crosshair_size)
+        pixmap.fill(Qt.transparent)  # Transparent background
+
+        painter = QPainter(pixmap)
+        # pen_color = QColor("black")
+        pen_color = QColor(0, 255, 0)
+        pen_thickness = 4  # Increase this value for thicker lines
+        pen = QPen(pen_color)
+        pen.setWidth(pen_thickness)
+        painter.setPen(pen)
+
+        # Draw horizontal and vertical lines for the crosshair
+        painter.drawLine(crosshair_size // 2, 0, crosshair_size // 2, crosshair_size)
+        painter.drawLine(0, crosshair_size // 2, crosshair_size, crosshair_size // 2)
+        painter.end()
+
+        custom_cursor = QCursor(pixmap)
+
+        window.setCursor(custom_cursor)
+
         return fig, ax, therm1
 
     def _update_display(self):
+        temp = 0
+        if 0 <= self.selected_y < 24 and 0 <= self.selected_x < 32:
+            temp = np.fliplr(self.data_array)[self.selected_y, self.selected_x]
+
+            self.temperature_text.set_text(f"{temp:.2f} °C")
+            # self.fig.canvas.draw_idle()
+
+        if temp != 0 and len(self.last_n_temps) < n_detects:
+            self.last_n_temps = [temp] * n_detects
+
+        elif temp != 0:
+            self.last_n_temps.pop(0)
+            self.last_n_temps.append(temp)
+
+        is_fluctuating = (
+            len(self.last_n_temps) > 0
+            and max(self.last_n_temps) - min(self.last_n_temps) > temp_diff_min
+        )
+
+        print(f"temp: {temp}, type: {type(temp)} temp > 4: {temp > 4}")
+
+        print(len(set(self.last_n_temps)) == n_detects)
+        print(max(self.last_n_temps))
+        print(min(self.last_n_temps))
+        print(max(self.last_n_temps) - min(self.last_n_temps))
+        print(max(self.last_n_temps) - min(self.last_n_temps) > temp_diff_min)
+
+        if temp > 70:
+            self.description_text.set_text(
+                "Device Overheating or Malfunction. Check the equipment"
+            )
+        elif temp > 50:
+            self.description_text.set_text(
+                "Extreme Temperatures (High). Check the equipment"
+            )
+
+        elif temp > 40:
+            self.description_text.set_text(
+                "Abnormal Temperature Detected. Check the equipment"
+            )
+
+        elif temp < -10:
+            self.description_text.set_text(
+                "Extreme Temperatures (Low). Check the equipment"
+            )
+
+        elif is_fluctuating:
+            self.description_text.set_text(
+                "Rapid Temperature Changes. Check the equipment"
+            )
+
+        else:
+            self.description_text.set_text("Normal Temperature")
+        self.fig.canvas.draw_idle()
+
         self.therm1.set_data(np.fliplr(self.data_array))
         self.therm1.set_clim(vmin=np.min(self.data_array), vmax=np.max(self.data_array))
         self.ax.draw_artist(self.ax.patch)
@@ -80,6 +221,7 @@ class MLX90640:
             try:
                 self.mlx.getFrame(self.frame)
                 self.data_array = np.reshape(self.frame, (24, 32))
+
                 self._update_display()
                 plt.pause(0.001)
                 self.t_array.append(time.monotonic() - t1)
