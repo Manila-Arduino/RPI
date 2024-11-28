@@ -1,5 +1,5 @@
 from subprocess import call
-from typing import Callable
+from typing import Callable, Optional
 from gpiozero import Button
 from time import sleep
 from datetime import datetime
@@ -13,7 +13,7 @@ def _usage():
 class ShutdownButton:
 
     def __init__(
-        self, pin: int, press_interval_s: int = 2, callback: Callable | None = None
+        self, pin: int, press_interval_s: int = 2, callback: Optional[Callable] = None
     ):
         self.pin = pin
         self.button = Button(self.pin)
