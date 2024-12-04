@@ -18,7 +18,7 @@ temp_diff_min = 5
 def _usage():
     #! MLX90640
     mlx90640 = MLX90640()
-    mlx90640.start()
+    mlx90640.update(35, 99)
 
 
 class MLX90640:
@@ -91,6 +91,24 @@ class MLX90640:
             weight="bold",
         )
 
+        self.amb_temp_text = plt.figtext(
+            0.05,
+            0.95,  # Position (x, y) near the top
+            f"AT: 0.0 °C",
+            fontsize=10,
+            color="black",
+            weight="bold",
+        )
+
+        self.amb_hum_text = plt.figtext(
+            0.05,
+            0.90,  # Position (x, y) near the top
+            f"AH: 0.0 %",
+            fontsize=10,
+            color="black",
+            weight="bold",
+        )
+
         # Remove x and y labels
         ax.axis("off")
 
@@ -151,7 +169,7 @@ class MLX90640:
 
         return fig, ax, therm1
 
-    def _update_display(self):
+    def _update_display(self, ambient_temp: float, ambient_humidity: float):
         temp = 0
         if 0 <= self.selected_y < 24 and 0 <= self.selected_x < 32:
             temp = np.fliplr(self.data_array)[self.selected_y, self.selected_x]
@@ -205,6 +223,10 @@ class MLX90640:
 
         else:
             self.description_text.set_text("Normal Temperature")
+
+        # Ambient temperature and humidity
+        self.amb_temp_text.set_text(f"AT: {ambient_temp:.2f} °C")
+        self.amb_hum_text.set_text(f"AH: {ambient_humidity:.2f} %")
         self.fig.canvas.draw_idle()
 
         self.therm1.set_data(np.fliplr(self.data_array))
@@ -214,7 +236,7 @@ class MLX90640:
         self.fig.canvas.update()
         self.fig.canvas.flush_events()
 
-    def update(self):
+    def update(self, ambient_temp: float, ambient_humidity: float):
         t1 = time.monotonic()
         retry_count = 0
         while retry_count < self.max_retries:
@@ -222,7 +244,7 @@ class MLX90640:
                 self.mlx.getFrame(self.frame)
                 self.data_array = np.reshape(self.frame, (24, 32))
 
-                self._update_display()
+                self._update_display(ambient_temp, ambient_humidity)
                 plt.pause(0.001)
                 self.t_array.append(time.monotonic() - t1)
                 print(
