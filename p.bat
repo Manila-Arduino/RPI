@@ -1,6 +1,12 @@
 @echo off
 @REM ! p venv, p i package_name, p u package_name, p r
 :: Check if the project folder path is provided
+@REM ! RUN PYTHON FILE
+if exist "%~1.py" (
+    python "%~1.py"
+    exit /b
+)
+
 @REM ! VENV
 if "%1"=="venv" (
     python -m venv venv
