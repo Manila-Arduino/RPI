@@ -1,7 +1,7 @@
 from typing import Callable, List, Optional, Tuple
 from pynput.keyboard import Listener, Key
 
-from classes.Rich import Rich
+from classes.p import P
 
 
 class Wrapper:
@@ -10,7 +10,7 @@ class Wrapper:
         loop: Callable,
         keyboardEvents: List[Tuple[str, Callable]] = [],
         onExit: Optional[Callable] = None,
-        stop_key="q",
+        stop_key: Optional[str] = "q",
     ) -> None:
         self.loop = loop
         self.keyboardEvents = keyboardEvents
@@ -30,7 +30,7 @@ class Wrapper:
         self.looping = False
 
     def on_press(self, key):
-        if hasattr(key, "char") and key.char == self.stop_key:
+        if self.stop_key and hasattr(key, "char") and key.char == self.stop_key:
             self.stop()
             return
 
@@ -46,4 +46,4 @@ class Wrapper:
             self.onExit()
         self.listener.stop()
 
-        Rich.print("Exiting...", style="danger")
+        P("Exiting...", "rb")
